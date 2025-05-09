@@ -1,452 +1,592 @@
 import { FontAwesome5 } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import React, { useState } from "react";
 import {
+  Alert,
   Modal,
+  Pressable,
   ScrollView,
-  Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeInUp } from "react-native-reanimated";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useBudget } from "../../context/BudgetContext";
-import { useLocalization } from "../../context/LocalizationContext";
-import { useTheme } from "../../context/ThemeContext";
 
-interface SettingsCardProps {
-  title: string;
-  value: string;
-  icon: string;
-  onPress: () => void;
-  bgColor?: string;
+// Available currencies
+const currencies = [
+  { symbol: "PKR", label: "Pakistani Rupee" },
+  { symbol: "$", label: "US Dollar" },
+  { symbol: "€", label: "Euro" },
+  { symbol: "£", label: "British Pound" },
+  { symbol: "¥", label: "Japanese Yen" },
+  { symbol: "₹", label: "Indian Rupee" },
+];
+
+interface Transaction {
+  date: string;
+  description: string;
+  amount: number;
 }
 
-const SettingsCard = ({
-  title,
-  value,
-  icon,
-  onPress,
-  bgColor = "bg-white",
-}: SettingsCardProps) => (
-  <TouchableOpacity onPress={onPress}>
-    <View className={`${bgColor} p-4 rounded-xl shadow-sm m-2`}>
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center">
-          <View className="bg-blue-500 w-10 h-10 rounded-full items-center justify-center mb-2">
-            <FontAwesome5 name={icon} size={20} color="white" />
-          </View>
-          <View className="ml-3">
-            <Text className="text-gray-700 font-medium">{title}</Text>
-            <Text className="text-gray-900 font-bold mt-1">{value}</Text>
-          </View>
-        </View>
-        <FontAwesome5 name="chevron-right" size={16} color="#9CA3AF" />
-      </View>
-    </View>
-  </TouchableOpacity>
-);
+const generatePDFContent = (data: {
+  totalBudget: number;
+  spentAmount: number;
+  currencySymbol: string;
+  categorySpending: any[];
+  categoryTransactions: Record<string, Transaction[]>;
+  currentMonth: string;
+  getMonthName: (month: string) => string;
+}) => {
+  const {
+    totalBudget,
+    spentAmount,
+    currencySymbol,
+    categorySpending,
+    categoryTransactions,
+    currentMonth,
+    getMonthName,
+  } = data;
+  const remainingBudget = totalBudget - spentAmount;
+  const spentPercentage = ((spentAmount / totalBudget) * 100).toFixed(1);
 
-const Settings = () => {
-  const { categories, addCategory, removeCategory } = useBudget();
-  const { isDarkMode, toggleTheme, theme } = useTheme();
-  const { language, setLanguage, t } = useLocalization();
-  const [selectedCurrency, setSelectedCurrency] = useState("PKR");
-  const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
-  const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
-  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
-  const [newCategoryTitle, setNewCategoryTitle] = useState("");
+  return `
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+        <style>
+          body { font-family: 'Helvetica', sans-serif; color: #1F2937; padding: 40px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .title { font-size: 24px; font-weight: bold; color: #7C3AED; margin: 0; }
+          .subtitle { color: #6B7280; margin-top: 8px; }
+          .overview-card { background: #F3F4F6; border-radius: 12px; padding: 20px; margin-bottom: 30px; }
+          .overview-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+          .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+          .stat-item { background: white; padding: 15px; border-radius: 8px; }
+          .stat-label { color: #6B7280; font-size: 14px; margin-bottom: 5px; }
+          .stat-value { font-size: 18px; font-weight: bold; }
+          .category-section { margin-top: 30px; }
+          .category-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+          .category-card { background: #F3F4F6; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+          .category-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+          .category-name { font-weight: bold; }
+          .transaction-list { background: white; border-radius: 8px; padding: 10px; }
+          .transaction-item { padding: 8px; border-bottom: 1px solid #E5E7EB; }
+          .transaction-item:last-child { border-bottom: none; }
+          .text-purple { color: #7C3AED; }
+          .text-red { color: #EF4444; }
+          .text-green { color: #10B981; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">HisabKitab Budget Report</h1>
+          <p class="subtitle">${getMonthName(currentMonth)}</p>
+        </div>
 
-  const currencies = ["PKR", "USD", "EUR", "GBP", "AED"];
-  const languages = [
-    { code: "en", label: "English" },
-    { code: "ur", label: "اردو" },
-  ];
+        <div class="overview-card">
+          <h2 class="overview-title">Budget Overview</h2>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <div class="stat-label">Total Budget</div>
+              <div class="stat-value">${currencySymbol} ${totalBudget}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Spent Amount</div>
+              <div class="stat-value text-red">${currencySymbol} ${spentAmount}</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Remaining</div>
+              <div class="stat-value text-green">${currencySymbol} ${remainingBudget}</div>
+            </div>
+          </div>
+          <p style="text-align: center; margin-top: 15px; color: #6B7280;">
+            Budget utilized: ${spentPercentage}%
+          </p>
+        </div>
+
+        <div class="category-section">
+          <h2 class="category-title">Category Details</h2>
+          ${categorySpending
+            .map((category) => {
+              const transactions = categoryTransactions[category.name] || [];
+              const categoryPercentage = (
+                (category.amount / totalBudget) *
+                100
+              ).toFixed(1);
+
+              return `
+              <div class="category-card">
+                <div class="category-header">
+                  <div class="category-name">${category.name}</div>
+                  <div class="text-purple">${currencySymbol} ${
+                category.amount
+              }</div>
+                </div>
+                <p style="margin: 5px 0; color: #6B7280;">
+                  ${categoryPercentage}% of total budget
+                </p>
+                ${
+                  transactions.length > 0
+                    ? `
+                  <div class="transaction-list">
+                    ${transactions
+                      .map(
+                        (transaction: Transaction) => `
+                      <div class="transaction-item">
+                        <div style="display: flex; justify-content: space-between;">
+                          <span>${transaction.description}</span>
+                          <span class="text-purple">${currencySymbol} ${
+                          transaction.amount
+                        }</span>
+                        </div>
+                        <div style="color: #6B7280; font-size: 12px; margin-top: 4px;">
+                          ${new Date(transaction.date).toLocaleDateString()}
+                        </div>
+                      </div>
+                    `
+                      )
+                      .join("")}
+                  </div>
+                `
+                    : '<p style="color: #6B7280; text-align: center;">No transactions</p>'
+                }
+              </div>
+            `;
+            })
+            .join("")}
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; color: #6B7280; font-size: 12px;">
+          Generated on ${new Date().toLocaleDateString()} using HisabKitab
+        </div>
+      </body>
+    </html>
+  `;
+};
+
+const Setting = () => {
+  const insets = useSafeAreaInsets();
+  const {
+    currencySymbol,
+    setCurrencySymbol,
+    getMonthName,
+    resetAllBudgets,
+    totalBudget,
+    spentAmount,
+    categorySpending,
+    categoryTransactions,
+    currentMonth,
+  } = useBudget();
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+
+  const handleResetData = () => {
+    Alert.alert(
+      "Reset All Data",
+      "This will permanently delete all your budget data. This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            resetAllBudgets();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      // Generate the HTML content
+      const html = generatePDFContent({
+        totalBudget,
+        spentAmount,
+        currencySymbol,
+        categorySpending,
+        categoryTransactions,
+        currentMonth,
+        getMonthName,
+      });
+
+      // Create the PDF file
+      const { uri } = await Print.printToFileAsync({
+        html,
+        base64: false,
+      });
+
+      // Share the PDF file
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Export Budget Report",
+        UTI: "com.adobe.pdf", // iOS only
+      });
+
+      // Show success feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      Alert.alert(
+        "Error",
+        "Could not generate the PDF report. Please try again."
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-100" style={{ paddingBottom: 16 }}>
-      <ScrollView
-        showsVerticalScrollIndicator={true}
-        contentContainerStyle={{ paddingBottom: 32 }}
+    <SafeAreaView style={{ flex: 1 }} edges={["right", "left"]}>
+      <LinearGradient
+        colors={["#E2D4F8", "#D1B6F8", "#C5A3F8"]}
+        style={{ flex: 1 }}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
       >
-        {/* Settings Title Card */}
-        <View className="m-4">
-          <View
+        <ScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingTop: insets.top - 20,
+            paddingBottom: 20 + insets.bottom,
+          }}
+          contentInsetAdjustmentBehavior="automatic"
+        >
+          {/* Settings Header */}
+          <Animated.View
+            entering={FadeInUp.delay(50).duration(500)}
+            className="mx-5 mb-6 bg-white/80 backdrop-blur-sm rounded-3xl p-5"
             style={{
-              backgroundColor: "#1d4ed8",
-              borderRadius: 12,
-              padding: 24,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
+              shadowColor: "#C5A3F8",
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.2,
               shadowRadius: 8,
-              elevation: 8,
+              elevation: 5,
             }}
           >
-            {/* Large Centered Icon */}
-            <View className="items-center mb-4">
-              <View
-                className="w-24 h-24 rounded-full items-center justify-center"
-                style={{
-                  backgroundColor: "rgba(255, 255, 255, 0.2)",
-                  borderWidth: 2,
-                  borderColor: "rgba(255, 255, 255, 0.4)",
-                }}
-              >
-                <FontAwesome5 name="cogs" size={40} color="white" />
-              </View>
-            </View>
-
-            {/* Settings Title and Tagline */}
             <View className="items-center">
-              <Text
-                className="text-white text-4xl font-bold tracking-wider mb-2"
-                style={{
-                  textShadowColor: "rgba(0, 0, 0, 0.4)",
-                  textShadowOffset: { width: 0, height: 2 },
-                  textShadowRadius: 4,
-                  letterSpacing: 2,
-                  transform: [{ scale: 1.05 }],
-                }}
-              >
-                {t("settings")}
+              <View className="bg-purple-50 p-4 rounded-full mb-4">
+                <FontAwesome5 name="cogs" size={36} color="#C5A3F8" solid />
+              </View>
+              <Text className="text-2xl font-bold text-gray-800 text-center">
+                Settings
               </Text>
-              <View>
-                <Text
-                  className="text-white/90 text-lg text-center px-4 tracking-wide mb-4"
-                  style={{
-                    textShadowColor: "rgba(0, 0, 0, 0.2)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 2,
-                    letterSpacing: 1,
-                    fontStyle: "italic",
-                  }}
-                >
-                  {t("customizePreferences")}
-                </Text>
-                <View
-                  style={{
-                    height: 2,
-                    width: "40%",
-                    backgroundColor: "rgba(255,255,255,0.3)",
-                    alignSelf: "center",
-                    borderRadius: 1,
-                    marginTop: -2,
-                    marginBottom: 16,
-                  }}
-                />
-              </View>
-
-              {/* Settings Features */}
-              <View
-                style={{
-                  backgroundColor: "rgba(0, 0, 0, 0.2)",
-                  borderRadius: 8,
-                  padding: 16,
-                  width: "100%",
-                  marginBottom: 16,
-                }}
-              >
-                <View className="flex-row items-center mb-3">
-                  <FontAwesome5 name="check-circle" size={16} color="white" />
-                  <Text className="text-white text-sm ml-2 font-medium">
-                    Language & Currency Options
-                  </Text>
-                </View>
-                <View className="flex-row items-center mb-3">
-                  <FontAwesome5 name="check-circle" size={16} color="white" />
-                  <Text className="text-white text-sm ml-2 font-medium">
-                    Dark/Light Theme
-                  </Text>
-                </View>
-                <View className="flex-row items-center">
-                  <FontAwesome5 name="check-circle" size={16} color="white" />
-                  <Text className="text-white text-sm ml-2 font-medium">
-                    Category Management
-                  </Text>
-                </View>
-              </View>
+              <View className="w-16 h-1 bg-purple-300 rounded-full my-2" />
+              <Text className="text-lg text-gray-600 text-center italic">
+                Customize your experience
+              </Text>
             </View>
-          </View>
-        </View>
+          </Animated.View>
 
-        {/* Preferences Section */}
-        <View className="px-4 mt-4">
-          <Text className="text-lg font-semibold text-gray-800 mb-2">
-            {t("preferences")}
-          </Text>
-
-          <SettingsCard
-            title={t("currency")}
-            value={selectedCurrency}
-            icon="money-bill-wave"
-            onPress={() => setIsCurrencyModalVisible(true)}
-            bgColor="bg-blue-50"
-          />
-
-          <SettingsCard
-            title={t("language")}
-            value={
-              languages.find((l) => l.code === language)?.label || "English"
-            }
-            icon="language"
-            onPress={() => setIsLanguageModalVisible(true)}
-            bgColor="bg-purple-50"
-          />
-
-          <View className="bg-orange-50 p-4 rounded-xl shadow-sm m-2">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center">
-                <View className="bg-orange-500 w-10 h-10 rounded-full items-center justify-center mb-2">
-                  <FontAwesome5 name="moon" size={20} color="white" />
-                </View>
-                <View className="ml-3">
-                  <Text className="text-gray-700 font-medium">
-                    {t("darkMode")}
-                  </Text>
-                  <Text className="text-gray-900 font-bold mt-1">
-                    {isDarkMode ? "Enabled" : "Disabled"}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={isDarkMode}
-                onValueChange={toggleTheme}
-                trackColor={{ false: "#D1D5DB", true: "#93C5FD" }}
-                thumbColor={isDarkMode ? "#2563EB" : "#F3F4F6"}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Categories Section */}
-        <View className="px-4 mt-4">
-          <View className="flex-row justify-between items-center mb-2">
-            <Text className="text-lg font-semibold text-gray-800">
-              {t("categories")}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setIsCategoryModalVisible(true)}
-              className="bg-blue-600 px-4 py-2 rounded-lg"
-            >
-              <Text className="text-white">{t("addNew")}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={true}
-            contentContainerStyle={{ paddingRight: 16 }}
+          {/* Currency Settings */}
+          <Animated.View
+            entering={FadeInUp.delay(100).duration(500)}
+            className="mx-5 mb-6 bg-white/80 backdrop-blur-sm rounded-3xl p-5"
+            style={{
+              shadowColor: "#C5A3F8",
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 5,
+            }}
           >
-            {categories.map((category) => (
-              <View
-                key={category.id}
-                className={`${category.bgColor} p-4 rounded-xl m-2 w-32`}
-                style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 4,
-                  elevation: 3,
-                  borderWidth: 1,
-                  borderColor: "rgba(0,0,0,0.05)",
+            <View className="flex-row items-center mb-4">
+              <View className="bg-purple-50 p-2 rounded-full mr-3">
+                <FontAwesome5 name="dollar-sign" size={20} color="#C5A3F8" />
+              </View>
+              <Text className="text-lg font-bold text-gray-800">Currency</Text>
+            </View>
+            <TouchableOpacity
+              className="bg-purple-50 rounded-xl p-4"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowCurrencyModal(true);
+              }}
+            >
+              <View className="flex-row justify-between items-center">
+                <View>
+                  <Text className="text-gray-600">Current Currency</Text>
+                  <Text className="text-xl font-bold text-purple-600 mt-1">
+                    {currencySymbol}
+                  </Text>
+                </View>
+                <FontAwesome5 name="chevron-right" size={16} color="#C5A3F8" />
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Data Management */}
+          <Animated.View
+            entering={FadeInUp.delay(150).duration(500)}
+            className="mx-5 mb-6 bg-white/80 backdrop-blur-sm rounded-3xl p-5"
+            style={{
+              shadowColor: "#C5A3F8",
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 5,
+            }}
+          >
+            <View className="flex-row items-center mb-4">
+              <View className="bg-purple-50 p-2 rounded-full mr-3">
+                <FontAwesome5 name="database" size={20} color="#C5A3F8" />
+              </View>
+              <Text className="text-lg font-bold text-gray-800">
+                Data Management
+              </Text>
+            </View>
+            <View className="space-y-3">
+              <TouchableOpacity
+                className="bg-purple-50 rounded-xl p-4"
+                onPress={handleExportPDF}
+              >
+                <View className="flex-row items-center">
+                  <FontAwesome5 name="file-pdf" size={16} color="#7C3AED" />
+                  <Text className="ml-3 text-purple-600 font-semibold">
+                    Export as PDF
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="bg-red-50 rounded-xl p-4"
+                onPress={handleResetData}
+              >
+                <View className="flex-row items-center">
+                  <FontAwesome5 name="trash-alt" size={16} color="#EF4444" />
+                  <Text className="ml-3 text-red-500 font-semibold">
+                    Reset All Data
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+
+          {/* About & Support */}
+          <Animated.View
+            entering={FadeInUp.delay(250).duration(500)}
+            className="mx-5 mb-6 bg-white/80 backdrop-blur-sm rounded-3xl p-5"
+            style={{
+              shadowColor: "#C5A3F8",
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 5,
+            }}
+          >
+            <View className="flex-row items-center mb-4">
+              <View className="bg-purple-50 p-2 rounded-full mr-3">
+                <FontAwesome5 name="info-circle" size={20} color="#C5A3F8" />
+              </View>
+              <Text className="text-lg font-bold text-gray-800">
+                About & Support
+              </Text>
+            </View>
+            <View className="space-y-3">
+              <TouchableOpacity
+                className="bg-purple-50 rounded-xl p-4"
+                onPress={() => {
+                  // TODO: Implement account settings
+                  Alert.alert(
+                    "Coming Soon",
+                    "Account settings will be available in the next update."
+                  );
                 }}
               >
-                <View
-                  className={`${category.iconColor} w-10 h-10 rounded-full items-center justify-center mb-2`}
-                  style={{
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 2,
-                    elevation: 2,
-                  }}
-                >
-                  <FontAwesome5 name={category.icon} size={16} color="white" />
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <FontAwesome5
+                      name="user-circle"
+                      size={16}
+                      color="#7C3AED"
+                    />
+                    <Text className="ml-3 text-purple-600 font-semibold">
+                      Account
+                    </Text>
+                  </View>
+                  <FontAwesome5
+                    name="chevron-right"
+                    size={16}
+                    color="#C5A3F8"
+                  />
                 </View>
-                <Text className="text-gray-700 font-medium mb-1">
-                  {category.title}
-                </Text>
-                {!category.isDefault && (
-                  <TouchableOpacity
-                    onPress={() => removeCategory(category.id)}
-                    className="mt-2"
-                  >
-                    <FontAwesome5 name="trash" size={16} color="#EF4444" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
+              </TouchableOpacity>
 
-        {/* Modals */}
-        {/* Currency Modal */}
+              <View className="bg-purple-50 rounded-xl p-4">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <FontAwesome5
+                      name="code-branch"
+                      size={16}
+                      color="#7C3AED"
+                    />
+                    <Text className="ml-3 text-purple-600 font-semibold">
+                      App Version
+                    </Text>
+                  </View>
+                  <Text className="text-gray-600">1.0.0</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                className="bg-purple-50 rounded-xl p-4"
+                onPress={() => {
+                  Alert.alert(
+                    "Help & Support",
+                    "Need help? Contact us at support@hisabkitab.app"
+                  );
+                }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <FontAwesome5
+                      name="question-circle"
+                      size={16}
+                      color="#7C3AED"
+                    />
+                    <Text className="ml-3 text-purple-600 font-semibold">
+                      Help & Support
+                    </Text>
+                  </View>
+                  <FontAwesome5
+                    name="chevron-right"
+                    size={16}
+                    color="#C5A3F8"
+                  />
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="bg-purple-50 rounded-xl p-4"
+                onPress={() => {
+                  // TODO: Link to privacy policy
+                  Alert.alert(
+                    "Privacy Policy",
+                    "Opens privacy policy in browser"
+                  );
+                }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <FontAwesome5 name="shield-alt" size={16} color="#7C3AED" />
+                    <Text className="ml-3 text-purple-600 font-semibold">
+                      Privacy Policy
+                    </Text>
+                  </View>
+                  <FontAwesome5
+                    name="chevron-right"
+                    size={16}
+                    color="#C5A3F8"
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </ScrollView>
+        {/* Currency Selection Modal */}
         <Modal
           animationType="slide"
           transparent={true}
-          visible={isCurrencyModalVisible}
-          onRequestClose={() => setIsCurrencyModalVisible(false)}
+          visible={showCurrencyModal}
+          onRequestClose={() => setShowCurrencyModal(false)}
         >
-          <View className="flex-1 justify-center items-center bg-black/50">
-            <View
-              style={{ backgroundColor: theme.cardBg }}
-              className="w-[90%] rounded-3xl p-6 mx-4 shadow-lg"
+          <View className="flex-1 justify-center items-center">
+            <Pressable
+              className="absolute top-0 left-0 right-0 bottom-0 bg-black/50"
+              onPress={() => setShowCurrencyModal(false)}
+            />
+            <Animated.View
+              entering={FadeInUp.duration(300)}
+              className="bg-white rounded-3xl p-5 mx-4 w-full max-w-lg"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
             >
-              <View className="border-b border-gray-200 pb-4 mb-4">
-                <Text
-                  style={{ color: theme.text }}
-                  className="text-xl font-bold text-center"
-                >
-                  {t("selectCurrency")}
+              <View className="items-center mb-6">
+                <View className="bg-purple-50 p-4 rounded-full mb-4">
+                  <FontAwesome5
+                    name="dollar-sign"
+                    size={24}
+                    color="#C5A3F8"
+                    solid
+                  />
+                </View>
+                <Text className="text-xl font-bold text-gray-800">
+                  Select Currency
                 </Text>
               </View>
-              <ScrollView className="max-h-72">
+
+              <View className="space-y-2">
                 {currencies.map((currency) => (
                   <TouchableOpacity
-                    key={currency}
+                    key={currency.symbol}
+                    className={`p-4 rounded-xl ${
+                      currencySymbol === currency.symbol
+                        ? "bg-purple-100"
+                        : "bg-gray-50"
+                    }`}
                     onPress={() => {
-                      setSelectedCurrency(currency);
-                      setIsCurrencyModalVisible(false);
+                      setCurrencySymbol(currency.symbol);
+                      setShowCurrencyModal(false);
+                      Haptics.notificationAsync(
+                        Haptics.NotificationFeedbackType.Success
+                      );
                     }}
-                    className="py-4 border-b border-gray-100 active:bg-gray-50"
                   >
-                    <Text
-                      className={`text-lg text-center ${
-                        selectedCurrency === currency
-                          ? "text-blue-600 font-semibold"
-                          : "text-gray-600"
-                      }`}
-                    >
-                      {currency}
-                    </Text>
+                    <View className="flex-row items-center">
+                      <Text
+                        className={`text-lg ${
+                          currencySymbol === currency.symbol
+                            ? "text-purple-600 font-bold"
+                            : "text-gray-800"
+                        }`}
+                      >
+                        {currency.symbol}
+                      </Text>
+                      <Text
+                        className={`ml-3 ${
+                          currencySymbol === currency.symbol
+                            ? "text-purple-600 font-medium"
+                            : "text-gray-600"
+                        }`}
+                      >
+                        {currency.label}
+                      </Text>
+                      {currencySymbol === currency.symbol && (
+                        <View className="ml-auto">
+                          <FontAwesome5
+                            name="check-circle"
+                            size={20}
+                            color="#C5A3F8"
+                            solid
+                          />
+                        </View>
+                      )}
+                    </View>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
-              <TouchableOpacity
-                onPress={() => setIsCurrencyModalVisible(false)}
-                className="mt-4 bg-gray-100 p-4 rounded-xl active:bg-gray-200"
-              >
-                <Text className="text-center text-gray-600 font-semibold">
-                  {t("cancel")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Language Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={isLanguageModalVisible}
-          onRequestClose={() => setIsLanguageModalVisible(false)}
-        >
-          <View className="flex-1 justify-center items-center bg-black/50">
-            <View
-              style={{ backgroundColor: theme.cardBg }}
-              className="w-[90%] rounded-3xl p-6 mx-4 shadow-lg"
-            >
-              <View className="border-b border-gray-200 pb-4 mb-4">
-                <Text
-                  style={{ color: theme.text }}
-                  className="text-xl font-bold text-center"
-                >
-                  {t("selectLanguage")}
-                </Text>
               </View>
-              {languages.map((lang) => (
-                <TouchableOpacity
-                  key={lang.code}
-                  onPress={() => {
-                    setLanguage(lang.code);
-                    setIsLanguageModalVisible(false);
-                  }}
-                  className="py-4 border-b border-gray-100 active:bg-gray-50"
-                >
-                  <Text
-                    className={`text-lg text-center ${
-                      language === lang.code
-                        ? "text-blue-600 font-semibold"
-                        : "text-gray-600"
-                    }`}
-                  >
-                    {lang.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                onPress={() => setIsLanguageModalVisible(false)}
-                className="mt-4 bg-gray-100 p-4 rounded-xl active:bg-gray-200"
-              >
-                <Text className="text-center text-gray-600 font-semibold">
-                  {t("cancel")}
-                </Text>
-              </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         </Modal>
-
-        {/* Add Category Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={isCategoryModalVisible}
-          onRequestClose={() => setIsCategoryModalVisible(false)}
-        >
-          <View className="flex-1 justify-center items-center bg-black/50">
-            <View
-              style={{ backgroundColor: theme.cardBg }}
-              className="w-[90%] rounded-3xl p-6 mx-4"
-            >
-              <Text
-                style={{ color: theme.text }}
-                className="text-xl font-bold mb-4 text-center"
-              >
-                {t("addCategory")}
-              </Text>
-              <TextInput
-                className="bg-gray-50 p-4 rounded-xl mb-4"
-                placeholder={t("categoryName")}
-                value={newCategoryTitle}
-                onChangeText={setNewCategoryTitle}
-              />
-              <TouchableOpacity
-                onPress={() => {
-                  if (newCategoryTitle.trim()) {
-                    addCategory({
-                      id: Date.now().toString(),
-                      title: newCategoryTitle,
-                      icon: "shopping-bag",
-                      iconColor: "bg-blue-500",
-                      bgColor: "bg-blue-50",
-                      budget: 0,
-                      spent: 0,
-                    });
-                    setNewCategoryTitle("");
-                    setIsCategoryModalVisible(false);
-                  }
-                }}
-                className="bg-blue-600 p-4 rounded-xl mb-2"
-              >
-                <Text className="text-center text-white font-semibold">
-                  {t("addCategory")}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setIsCategoryModalVisible(false)}
-                className="bg-gray-100 p-4 rounded-xl"
-              >
-                <Text className="text-center text-gray-600 font-semibold">
-                  {t("cancel")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      </ScrollView>
+      </LinearGradient>
     </SafeAreaView>
   );
 };
 
-export default Settings;
+export default Setting;
