@@ -6,8 +6,8 @@ import * as Sharing from "expo-sharing";
 import React, { useState } from "react";
 import {
   Alert,
+  Linking,
   Modal,
-  Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -18,9 +18,9 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+
 import { useBudget } from "../../context/BudgetContext";
 
-// Available currencies
 const currencies = [
   { symbol: "PKR", label: "Pakistani Rupee" },
   { symbol: "$", label: "US Dollar" },
@@ -237,8 +237,8 @@ const Setting = () => {
 
       // Show success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
+    } catch (err) {
+      console.error("Error generating PDF:", err);
       Alert.alert(
         "Error",
         "Could not generate the PDF report. Please try again."
@@ -267,7 +267,7 @@ const Setting = () => {
           {/* Settings Header */}
           <Animated.View
             entering={FadeInUp.delay(50).duration(500)}
-            className="mx-5 mb-6 bg-white/80 backdrop-blur-sm rounded-3xl p-5"
+            className="mx-5 mb-6 bg-white/80 backdrop-blur-sm rounded-3xl px-7 py-6"
             style={{
               shadowColor: "#C5A3F8",
               shadowOffset: { width: 0, height: 3 },
@@ -289,7 +289,6 @@ const Setting = () => {
               </Text>
             </View>
           </Animated.View>
-
           {/* Currency Settings */}
           <Animated.View
             entering={FadeInUp.delay(100).duration(500)}
@@ -302,31 +301,36 @@ const Setting = () => {
               elevation: 5,
             }}
           >
-            <View className="flex-row items-center mb-4">
-              <View className="bg-purple-50 p-2 rounded-full mr-3">
-                <FontAwesome5 name="dollar-sign" size={20} color="#C5A3F8" />
+            <View className="flex-row items-center justify-between mb-4">
+              <View>
+                <Text className="text-lg font-bold text-gray-800">
+                  Currency
+                </Text>
+                <Text className="text-sm text-gray-600">
+                  Select your preferred currency
+                </Text>
               </View>
-              <Text className="text-lg font-bold text-gray-800">Currency</Text>
+              <View className="bg-purple-50 p-3 rounded-full">
+                <FontAwesome5
+                  name="dollar-sign"
+                  size={24}
+                  color="#C5A3F8"
+                  solid
+                />
+              </View>
             </View>
             <TouchableOpacity
-              className="bg-purple-50 rounded-xl p-4"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowCurrencyModal(true);
-              }}
+              className="flex-row items-center justify-between bg-purple-50 rounded-xl p-4"
+              onPress={() => setShowCurrencyModal(true)}
             >
-              <View className="flex-row justify-between items-center">
-                <View>
-                  <Text className="text-gray-600">Current Currency</Text>
-                  <Text className="text-xl font-bold text-purple-600 mt-1">
-                    {currencySymbol}
-                  </Text>
-                </View>
-                <FontAwesome5 name="chevron-right" size={16} color="#C5A3F8" />
-              </View>
+              <Text className="text-gray-700 font-medium">
+                Current:{" "}
+                {currencies.find((c) => c.symbol === currencySymbol)?.label ||
+                  currencySymbol}
+              </Text>
+              <FontAwesome5 name="chevron-right" size={16} color="#C5A3F8" />
             </TouchableOpacity>
           </Animated.View>
-
           {/* Data Management */}
           <Animated.View
             entering={FadeInUp.delay(150).duration(500)}
@@ -372,7 +376,6 @@ const Setting = () => {
               </TouchableOpacity>
             </View>
           </Animated.View>
-
           {/* About & Support */}
           <Animated.View
             entering={FadeInUp.delay(250).duration(500)}
@@ -493,6 +496,103 @@ const Setting = () => {
               </TouchableOpacity>
             </View>
           </Animated.View>
+
+          {/* Creator Card */}
+          <Animated.View
+            entering={FadeInUp.delay(300).duration(500)}
+            className="mx-5 mb-6 bg-white/80 backdrop-blur-sm rounded-3xl p-5"
+            style={{
+              shadowColor: "#C5A3F8",
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 5,
+            }}
+          >
+            <View className="flex-row items-center mb-4">
+              <View className="bg-purple-50 p-2 rounded-full mr-3">
+                <FontAwesome5 name="code" size={20} color="#C5A3F8" />
+              </View>
+              <Text className="text-lg font-bold text-gray-800">Developer</Text>
+            </View>
+
+            <View className="items-center p-4 bg-purple-50 rounded-xl">
+              <View className="bg-white p-4 rounded-full mb-4 shadow-sm">
+                <FontAwesome5 name="user-circle" size={48} color="#7C3AED" />
+              </View>
+              <Text className="text-xl font-bold text-purple-600 mb-1">
+                Muhammad Rafiq
+              </Text>
+              <Text className="text-gray-600 font-medium mb-2">
+                Full Stack & Mobile Developer
+              </Text>
+              <Text className="text-gray-600 text-center text-sm mb-4">
+                A passionate mobile and web developer from Pakistan, focused on
+                building simple yet powerful tools that solve real-life
+                problems.
+              </Text>
+              <View className="flex-row space-x-4 mb-4">
+                <TouchableOpacity
+                  className="bg-purple-100 p-3 rounded-full"
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try {
+                      await Linking.openURL("https://github.com/Rafiqdevhub");
+                    } catch (_) {
+                      Alert.alert("Error", "Could not open GitHub profile");
+                    }
+                  }}
+                >
+                  <FontAwesome5 name="github" size={20} color="#7C3AED" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="bg-purple-100 p-3 rounded-full"
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try {
+                      await Linking.openURL(
+                        "https://www.linkedin.com/in/rafiqdevhub/"
+                      );
+                    } catch (_) {
+                      Alert.alert("Error", "Could not open LinkedIn profile");
+                    }
+                  }}
+                >
+                  <FontAwesome5 name="linkedin" size={20} color="#7C3AED" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="bg-purple-100 p-3 rounded-full"
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try {
+                      await Linking.openURL("https://rafiqdev.vercel.app/");
+                    } catch (_) {
+                      Alert.alert("Error", "Could not open portfolio website");
+                    }
+                  }}
+                >
+                  <FontAwesome5 name="globe" size={20} color="#7C3AED" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                className="bg-purple-600 px-6 py-3 rounded-xl w-full"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  Alert.alert(
+                    "Contact",
+                    "rafkhan9323@gmail.com\n\nEmail copied to clipboard!"
+                  );
+                }}
+              >
+                <View className="flex-row items-center justify-center">
+                  <FontAwesome5 name="envelope" size={16} color="white" />
+                  <Text className="ml-2 text-white font-semibold">
+                    Get in Touch
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         </ScrollView>
         {/* Currency Selection Modal */}
         <Modal
@@ -501,23 +601,21 @@ const Setting = () => {
           visible={showCurrencyModal}
           onRequestClose={() => setShowCurrencyModal(false)}
         >
-          <View className="flex-1 justify-center items-center">
-            <Pressable
-              className="absolute top-0 left-0 right-0 bottom-0 bg-black/50"
-              onPress={() => setShowCurrencyModal(false)}
-            />
+          <View className="flex-1 items-center justify-center px-4 bg-black/50">
             <Animated.View
               entering={FadeInUp.duration(300)}
-              className="bg-white rounded-3xl p-5 mx-4 w-full max-w-lg"
+              className="bg-white rounded-3xl w-full overflow-hidden"
               style={{
+                maxWidth: 360,
                 shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
+                shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.25,
-                shadowRadius: 8,
-                elevation: 8,
+                shadowRadius: 12,
+                elevation: 10,
               }}
             >
-              <View className="items-center mb-6">
+              {/* Modal Header */}
+              <View className="items-center pt-6 px-6 border-b border-gray-100">
                 <View className="bg-purple-50 p-4 rounded-full mb-4">
                   <FontAwesome5
                     name="dollar-sign"
@@ -526,60 +624,87 @@ const Setting = () => {
                     solid
                   />
                 </View>
-                <Text className="text-xl font-bold text-gray-800">
+                <Text className="text-xl font-bold text-gray-800 mb-6">
                   Select Currency
                 </Text>
               </View>
 
-              <View className="space-y-2">
-                {currencies.map((currency) => (
-                  <TouchableOpacity
-                    key={currency.symbol}
-                    className={`p-4 rounded-xl ${
-                      currencySymbol === currency.symbol
-                        ? "bg-purple-100"
-                        : "bg-gray-50"
-                    }`}
-                    onPress={() => {
-                      setCurrencySymbol(currency.symbol);
-                      setShowCurrencyModal(false);
-                      Haptics.notificationAsync(
-                        Haptics.NotificationFeedbackType.Success
-                      );
-                    }}
-                  >
-                    <View className="flex-row items-center">
-                      <Text
-                        className={`text-lg ${
-                          currencySymbol === currency.symbol
-                            ? "text-purple-600 font-bold"
-                            : "text-gray-800"
-                        }`}
-                      >
-                        {currency.symbol}
-                      </Text>
-                      <Text
-                        className={`ml-3 ${
-                          currencySymbol === currency.symbol
-                            ? "text-purple-600 font-medium"
-                            : "text-gray-600"
-                        }`}
-                      >
-                        {currency.label}
-                      </Text>
-                      {currencySymbol === currency.symbol && (
-                        <View className="ml-auto">
+              {/* Currency List */}
+              <ScrollView
+                className="px-4 pt-4 max-h-[400px]"
+                showsVerticalScrollIndicator={false}
+              >
+                <View className="space-y-2 pb-4">
+                  {currencies.map((currency) => (
+                    <TouchableOpacity
+                      key={currency.symbol}
+                      className={`p-4 rounded-xl active:opacity-90 ${
+                        currencySymbol === currency.symbol
+                          ? "bg-purple-100 border-2 border-purple-200"
+                          : "bg-gray-50"
+                      }`}
+                      onPress={() => {
+                        setCurrencySymbol(currency.symbol);
+                        setShowCurrencyModal(false);
+                        Haptics.notificationAsync(
+                          Haptics.NotificationFeedbackType.Success
+                        );
+                      }}
+                    >
+                      <View className="flex-row items-center">
+                        <View
+                          className={`w-10 h-10 rounded-full ${
+                            currencySymbol === currency.symbol
+                              ? "bg-purple-200"
+                              : "bg-white"
+                          } items-center justify-center mr-3`}
+                        >
+                          <Text
+                            className={`text-lg font-bold ${
+                              currencySymbol === currency.symbol
+                                ? "text-purple-600"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            {currency.symbol}
+                          </Text>
+                        </View>
+                        <Text
+                          className={`flex-1 ${
+                            currencySymbol === currency.symbol
+                              ? "text-purple-600 font-medium"
+                              : "text-gray-600"
+                          }`}
+                        >
+                          {currency.label}
+                        </Text>
+                        {currencySymbol === currency.symbol && (
                           <FontAwesome5
                             name="check-circle"
                             size={20}
                             color="#C5A3F8"
                             solid
                           />
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Bottom Actions */}
+              <View className="p-4 border-t border-gray-100">
+                <TouchableOpacity
+                  className="w-full bg-gray-100 rounded-xl p-4"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowCurrencyModal(false);
+                  }}
+                >
+                  <Text className="text-center font-semibold text-gray-700">
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
               </View>
             </Animated.View>
           </View>

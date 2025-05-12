@@ -20,6 +20,27 @@ import {
 } from "react-native-safe-area-context";
 import { CategoryType, useBudget } from "../../context/BudgetContext";
 
+// Function to format numbers with commas
+const formatNumber = (num: number) => {
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
+
+// Function to format input as user types
+const formatNumberInput = (text: string) => {
+  // Remove any non-digit characters
+  const cleanNumber = text.replace(/[^0-9]/g, "");
+  // Convert to number and format with commas
+  if (cleanNumber) {
+    return formatNumber(parseInt(cleanNumber, 10));
+  }
+  return "";
+};
+
+// Function to parse formatted number back to plain number
+const parseFormattedNumber = (formatted: string) => {
+  return formatted.replace(/,/g, "");
+};
+
 interface ResetConfirmationModalProps {
   visible: boolean;
   onClose: () => void;
@@ -282,16 +303,16 @@ const Budget = () => {
               <View>
                 <Text className="text-base text-gray-600">Total Budget</Text>
                 <Text className="text-2xl font-bold text-purple-600 mt-1">
-                  {currencySymbol} {totalBudget}{" "}
+                  {currencySymbol} {formatNumber(totalBudget)}{" "}
                 </Text>
                 <View className="flex-row mt-2">
                   <Text className="text-sm text-gray-500">Spent: </Text>
                   <Text className="text-sm font-semibold text-red-500">
-                    {currencySymbol} {spentAmount}
+                    {currencySymbol} {formatNumber(spentAmount)}
                   </Text>
                   <Text className="text-sm text-gray-500 ml-2">Remaining</Text>
                   <Text className="text-sm font-semibold text-green-500 ml-1">
-                    {currencySymbol} {remainingBudget}
+                    {currencySymbol} {formatNumber(remainingBudget)}
                   </Text>
                 </View>
               </View>
@@ -353,7 +374,7 @@ const Budget = () => {
                   <View className="flex-row items-center mt-1">
                     <Text className="text-sm text-gray-500 ml-2">Spent: </Text>
                     <Text className="text-sm font-semibold text-red-500">
-                      {currencySymbol} {category.amount}
+                      {currencySymbol} {formatNumber(category.amount)}
                     </Text>
                   </View>
                   <View className="h-1 bg-gray-200 rounded-full mt-2">
@@ -438,7 +459,8 @@ const Budget = () => {
                                 Amount Spent
                               </Text>
                               <Text className="text-lg font-bold text-red-500">
-                                {currencySymbol} {editingCategory.amount}
+                                {currencySymbol}{" "}
+                                {formatNumber(editingCategory.amount)}
                               </Text>
                               <Text className="text-xs text-gray-500 mt-1">
                                 Last updated: {new Date().toLocaleDateString()}
@@ -493,7 +515,9 @@ const Budget = () => {
                                 className="flex-1 text-2xl font-semibold text-gray-800"
                                 keyboardType="decimal-pad"
                                 value={transactionAmount}
-                                onChangeText={setTransactionAmount}
+                                onChangeText={(text) =>
+                                  setTransactionAmount(formatNumberInput(text))
+                                }
                                 placeholder="0.00"
                                 placeholderTextColor="#9CA3AF"
                                 autoFocus
@@ -539,8 +563,10 @@ const Budget = () => {
                                 className="flex-1 text-2xl font-semibold text-gray-800"
                                 keyboardType="decimal-pad"
                                 value={transactionAmount}
-                                onChangeText={setTransactionAmount}
-                                placeholder={totalBudget.toString()}
+                                onChangeText={(text) =>
+                                  setTransactionAmount(formatNumberInput(text))
+                                }
+                                placeholder={formatNumber(totalBudget)}
                                 placeholderTextColor="#9CA3AF"
                                 autoFocus
                                 selectionColor="#C5A3F8"
@@ -585,7 +611,9 @@ const Budget = () => {
                           : "bg-purple-600"
                       }`}
                       onPress={() => {
-                        const amount = parseFloat(transactionAmount);
+                        const amount = parseFloat(
+                          parseFormattedNumber(transactionAmount)
+                        );
                         if (isNaN(amount) || amount <= 0) {
                           Haptics.notificationAsync(
                             Haptics.NotificationFeedbackType.Error
